@@ -19,7 +19,7 @@ public class Server {
 	
 	private void start() {
 		try {
-			ServerSocket server =new ServerSocket(8888);
+			ServerSocket server =new ServerSocket(8889);
 			while (true) {
 				Socket client=server.accept();
 				MyChannel mc=new MyChannel(client);
@@ -36,6 +36,7 @@ public class Server {
 		private DataInputStream dis;
 		private DataOutputStream dos;
 		private boolean isRunning=true;
+		private String name;
 		
 		public MyChannel() {}
 		
@@ -43,6 +44,12 @@ public class Server {
 			try {
 				dis=new DataInputStream(client.getInputStream());
 				dos=new DataOutputStream(client.getOutputStream());
+				
+				this.name=dis.readUTF();
+				System.out.println(this.name);
+				this.sendMsgToClient("welcome you to this chat room");
+				sendMsgToOtherClient("welcome "+this.name+" enter the chat room",true);
+				
 			} catch (IOException e) {
 				System.out.println("server get stream exception");
 				e.printStackTrace();
@@ -53,8 +60,9 @@ public class Server {
 		}
 		
 		private String getMsgFromClient() {
+			String data="";
 			try {
-				return dis.readUTF();
+				data= dis.readUTF();
 			} catch (IOException e) {
 				System.out.println("server getMsgFromClient is exception");
 				e.printStackTrace();
@@ -62,12 +70,13 @@ public class Server {
 				members.remove(this);
 				isRunning=false;
 			}
-			return null;
+			return data;
 		}
 		
 		private void sendMsgToClient(String msg) {
 			try {
 				if (msg.isEmpty()) {
+					System.out.println("server sendMsgToClient get msg is null");
 					return;
 				}else {
 					dos.writeUTF(msg);
@@ -82,29 +91,49 @@ public class Server {
 			}
 		}
 		
-		private void sendMsgToOtherClient() {
-			String msg=getMsgFromClient();
+		private void sendMsgToOtherClient(String msg,boolean sys) {
 			if(msg.isEmpty()) {
+				System.out.println("server sendMsgToOtherClient get mst is null");
 				return;
 			}else{
-				for (MyChannel mc : members) {
-					if(mc==this) {
-						continue;
-					}else {
-						mc.sendMsgToClient(msg);
+				//private chat
+				if(msg.startsWith("@") && msg.contains(":")) {
+					String tempName=msg.substring(msg.indexOf("@")+1, msg.indexOf(":"));
+					String content=msg.substring(msg.indexOf(":")+1);
+					for (MyChannel mc : members) {
+						if(mc.name.equals(tempName)) {
+							mc.sendMsgToClient(this.name+" silently to you say: "+content);
+						}
+					}
+				}else {
+					//public chat
+					for (MyChannel mc : members) {
+						if(mc==this) {
+							continue;
+						}else {
+							if(sys) {
+								mc.sendMsgToClient("system message: "+msg);
+							}else {
+								mc.sendMsgToClient(this.name+" to all say: "+msg);
+							}
+						}
 					}
 				}
+				
 			}
 		}
 		
 		@Override
 		public void run() {
 			while (isRunning) {
-				sendMsgToOtherClient();
+				String msg=getMsgFromClient();
+				if(msg.isEmpty()) {
+					System.out.println("server get msg from client is null");
+					return;
+				}
+				sendMsgToOtherClient(msg,false);
 			}
-			
 		}
-		
 	}
 
 }

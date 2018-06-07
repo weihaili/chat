@@ -7,14 +7,23 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.UnknownHostException;
-
 import org.cn.kkl.util.IoClose;
 
 public class Client {
 	public static void main(String[] args) {
+		new Client().start();
+	}
+	
+	private void start() {
 		try {
-			Socket client = new Socket("localhost",8888);
-			new Thread(new Send(client)).start();
+			BufferedReader br=new BufferedReader(new InputStreamReader(System.in));
+			System.out.print("Enter name:");
+			String name=br.readLine();
+			if(name.isEmpty() || name.trim().length()>30) {
+				System.out.println("your name is illegal");
+			}
+			Socket client = new Socket("localhost",8889);
+			new Thread(new Send(client,name)).start();
 			new Thread(new Receive(client)).start();
 		} catch (UnknownHostException e) {
 			System.out.println("client connection exception");
@@ -45,22 +54,26 @@ class Receive implements Runnable{
 		}
 	}
 	
-	private String receiveToServer() {
+	private String receiveFromServer() {
+		String msg="";
 		try {
-			return dis.readUTF();
+			msg= dis.readUTF();
 		} catch (IOException e) {
 			System.out.println("client receive to server is exception");
 			e.printStackTrace();
 			IoClose.closeAll(dis);
 			isRunning=false;
 		}
-		return null;
+		return msg;
 	}
 	
 	@Override
 	public void run() {
 		while (isRunning) {
-			System.out.println(receiveToServer());
+			if(receiveFromServer().isEmpty()) {
+				return ;
+			}
+			System.out.println(receiveFromServer());
 		}
 	}
 }
@@ -72,14 +85,18 @@ class Send implements Runnable{
 	
 	private boolean isRunning=true;
 	
+	private String name;
+	
 	public Send() {
 		console=new BufferedReader(new InputStreamReader(System.in));
 	}
 	
-	public Send(Socket client){
+	public Send(Socket client,String name){
 		this();
+		this.name=name;
 		try {
 			dos=new DataOutputStream(client.getOutputStream());
+			sendToServer(this.name);
 		} catch (IOException e) {
 			System.out.println("client get dataStream exception");
 			e.printStackTrace();
@@ -89,19 +106,19 @@ class Send implements Runnable{
 	}
 	
 	private String getDataFromConsole() {
+		String data="";
 		try {
-			return console.readLine();
+			data= console.readLine();
 		} catch (IOException e) {
 			System.out.println("get data from console exception");
 			e.printStackTrace();
 			IoClose.closeAll(console,dos);
 			isRunning=false;
 		}
-		return null;
+		return data;
 	}
 	
-	private void sendToServer() {
-		String sendMsg=getDataFromConsole();
+	private void sendToServer(String sendMsg) {
 		try {
 			if (sendMsg.isEmpty()) {
 				return;
@@ -120,7 +137,10 @@ class Send implements Runnable{
 	@Override
 	public void run() {
 		while (isRunning) {
-			sendToServer();
+			if(getDataFromConsole().isEmpty()) {
+				return;
+			}
+			sendToServer(getDataFromConsole());
 		}
 	}
 }
