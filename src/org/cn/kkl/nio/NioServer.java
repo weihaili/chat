@@ -48,7 +48,9 @@ public class NioServer {
 					SelectionKey selectionKey = iterator.next();
 					iterator.remove();
 					//process business logic
-					handlekey(selectionKey);
+					if(selectionKey.isValid()) {
+						handlekey(selectionKey);
+					}
 				}
 			} catch (IOException e) {
 				System.out.println("listen events exception");
@@ -69,7 +71,7 @@ public class NioServer {
 			try {
 				client=server.accept();
 				client.configureBlocking(false);
-				client.register(selector, selectionKey.OP_READ);
+				client.register(selector, SelectionKey.OP_READ);
 			} catch (IOException e) {
 				System.out.println("get client chanel exception");
 				e.printStackTrace();
@@ -81,8 +83,8 @@ public class NioServer {
 				if(count>0) {
 					receiveText=new String(receiveBuffer.array(), 0, count);
 					System.out.println("server receive client date :"+receiveText);
-					client.register(selector, selectionKey.OP_WRITE);
 				}
+				client.register(selector, SelectionKey.OP_WRITE);
 			} catch (IOException e) {
 				System.out.println("read client data exception");
 				e.printStackTrace();
@@ -95,7 +97,6 @@ public class NioServer {
 			 sendBuffer.flip();
 			 try {
 				client.write(sendBuffer);
-				
 				System.out.println("server send data"+sendText+" to clent success");
 			} catch (IOException e) {
 				System.out.println("server send client data exception");
