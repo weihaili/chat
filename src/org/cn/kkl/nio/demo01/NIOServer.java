@@ -18,33 +18,34 @@ public class NIOServer {
 	private ByteBuffer sendbuffer = ByteBuffer.allocate(blockSize);// 发送数据缓冲区
 	private ByteBuffer receivebuffer = ByteBuffer.allocate(blockSize);// 接收数据缓冲区
 	private Selector selector;// 选择器
+	
+	private int keys=0;
 
-	public NIOServer(int port) throws IOException {
+	public NIOServer() throws IOException {
 		ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
 		// 设置是否组阻塞
 		serverSocketChannel.configureBlocking(false);
 		// 创建客户端和服务端的socket.socket网络套接字，用来向网络发送请求，或者应答请求。
 		ServerSocket serverSocket = serverSocketChannel.socket();
 		// 绑定socket地址，IP端口
-		serverSocket.bind(new InetSocketAddress(port));
+		serverSocket.bind(new InetSocketAddress("127.0.0.1",8889));
 		// 打开筛选器
-		selector = Selector.open();
+		this.selector = Selector.open();
 
 		// 将选择器绑定到监听信道,只有非阻塞信道才可以注册选择器.并在注册过程中指出该信道可以进行Accept操作，返回key
-		serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-		System.out.println("Server start ->" + port);
+		serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
+		System.out.println("Server start ->" + 8889);
 	}
 
 	// NIOServer的监听事件
 	public void listen() throws IOException {
 		while (true) {
-			selector.select();
-			Set<SelectionKey> selectionKeys = selector.selectedKeys();
-			Iterator<SelectionKey> itetor = selectionKeys.iterator();
-			while (itetor.hasNext()) {
+			keys=this.selector.select();
+			Iterator<SelectionKey> iterator = this.selector.selectedKeys().iterator();
+			while (iterator.hasNext()) {
 				// 负责多线程并发的安全的key
-				SelectionKey selectionKey = itetor.next();
-				itetor.remove();
+				SelectionKey selectionKey = iterator.next();
+				iterator.remove();
 				// 业务逻辑
 				handleKey(selectionKey);
 			}
@@ -64,7 +65,7 @@ public class NIOServer {
 			server = (ServerSocketChannel) selectionKey.channel();
 			client = server.accept();
 			client.configureBlocking(false);
-			client.register(selector, selectionKey.OP_READ);
+			client.register(selector, SelectionKey.OP_READ);
 		} else if (selectionKey.isReadable()) {
 			// 服务端读取客户端信息
 			client = (SocketChannel) selectionKey.channel();
@@ -89,9 +90,7 @@ public class NIOServer {
 	}
 
 	public static void main(String[] args) throws IOException {
-		int port = 7080;
-		NIOServer server = new NIOServer(port);
-		server.listen();
+		new NIOServer().listen();
 	}
 
 }
