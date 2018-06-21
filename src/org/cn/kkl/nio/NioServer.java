@@ -8,6 +8,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -19,47 +20,36 @@ public class NioServer {
 	private ByteBuffer receiveBuffer = ByteBuffer.allocate(blockSize);
 	private Selector selector;
 	
-	public NioServer(int port) {
-		try {
-			ServerSocketChannel serverSocketChannel=ServerSocketChannel.open();
-			serverSocketChannel.configureBlocking(false);//set non-block
-			ServerSocket serverSocket=serverSocketChannel.socket();
-			serverSocket.bind(new InetSocketAddress(port));//bind port
-			
-			selector = Selector.open();//open selector
-			
-			serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-			
-			System.out.println("server start-->"+port);
-			
-		} catch (IOException e) {
-			System.out.println("open serverSocketChannel exception");
-			e.printStackTrace();
-		}
+	public NioServer(int port) throws IOException {
+		//Open server channel
+		ServerSocketChannel serverSocketChannel=ServerSocketChannel.open();
+		serverSocketChannel.configureBlocking(false);//set non-block
+		ServerSocket serverSocket=serverSocketChannel.socket();
+		serverSocket.bind(new InetSocketAddress(port));//bind port
+		
+		selector = Selector.open();//open selector
+		
+		serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+		
+		System.out.println("server start-->"+port);
 	}
 	
-	public void listen() {
+	public void listen() throws IOException {
 		while(true) {
-			try {
-				selector.select();
-				Set<SelectionKey> selectionKeys=selector.selectedKeys();
-				Iterator<SelectionKey> iterator=selectionKeys.iterator();
-				while (iterator.hasNext()) {
-					SelectionKey selectionKey = iterator.next();
-					iterator.remove();
-					//process business logic
-					if(selectionKey.isValid()) {
-						handlekey(selectionKey);
-					}
-				}
-			} catch (IOException e) {
-				System.out.println("listen events exception");
-				e.printStackTrace();
+			selector.select();//traverse selector
+			Set<SelectionKey> selectionKeys=selector.selectedKeys();
+			System.out.println(Arrays.toString(selectionKeys.toArray()));
+			Iterator<SelectionKey> iterator=selectionKeys.iterator();
+			while (iterator.hasNext()) {
+				SelectionKey selectionKey = iterator.next();
+				iterator.remove();
+				//process business logic
+				handlekey(selectionKey);
 			}
 		}
 	}
 	
-	public void handlekey(SelectionKey selectionKey) {
+	public void handlekey(SelectionKey selectionKey) throws IOException {
 		ServerSocketChannel server=null;
 		SocketChannel client= null;
 		String receiveText;
@@ -68,48 +58,35 @@ public class NioServer {
 		
 		if(selectionKey.isAcceptable()) {
 			server=(ServerSocketChannel) selectionKey.channel();
-			try {
-				client=server.accept();
-				client.configureBlocking(false);
-				client.register(selector, SelectionKey.OP_READ);
-			} catch (IOException e) {
-				System.out.println("get client chanel exception");
-				e.printStackTrace();
-			}
+			client=server.accept();
+			client.configureBlocking(false);
+			client.register(selector, SelectionKey.OP_READ);
 		}else if(selectionKey.isReadable()) {
 			client=(SocketChannel) selectionKey.channel();
-			try {
-				count=client.read(receiveBuffer);
-				if(count>0) {
-					receiveText=new String(receiveBuffer.array(), 0, count);
-					System.out.println("server receive client date :"+receiveText);
-				}
-				client.register(selector, SelectionKey.OP_WRITE);
-			} catch (IOException e) {
-				System.out.println("read client data exception");
-				e.printStackTrace();
+			count=client.read(receiveBuffer);
+			if(count>0) {
+				receiveText=new String(receiveBuffer.array(), 0, count);
+				System.out.println("server receive client date :"+receiveText);
 			}
+			client.register(selector, SelectionKey.OP_WRITE);
 		}else if(selectionKey.isWritable()) {
 			 sendBuffer.clear();
 			 client=(SocketChannel) selectionKey.channel();
 			 sendText="msg send to client"+flag++;
 			 sendBuffer.put(sendText.getBytes());
 			 sendBuffer.flip();
-			 try {
-				client.write(sendBuffer);
-				System.out.println("server send data"+sendText+" to clent success");
-			} catch (IOException e) {
-				System.out.println("server send client data exception");
-				e.printStackTrace();
-			}
+			 client.write(sendBuffer);
+			 System.out.println("server send data"+sendText+" to clent success");
 		}
 		
 	}
 	
-	public static void main(String[] args) {
-		int port=8889;
-		NioServer nioServer=new NioServer(port);
-		nioServer.listen();
+	public static void main(String[] args) throws IOException, InterruptedException {
+		int port=8888;
+		NioServer server=new NioServer(port);
+		
+		Thread.sleep(10000);
+		server.listen();
 	}
 
 }
