@@ -8,7 +8,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -20,25 +19,28 @@ public class NioServer {
 	private ByteBuffer receiveBuffer = ByteBuffer.allocate(blockSize);
 	private Selector selector;
 	
-	public NioServer(int port) throws IOException {
+	public NioServer() throws IOException {
 		//Open server channel
 		ServerSocketChannel serverSocketChannel=ServerSocketChannel.open();
 		serverSocketChannel.configureBlocking(false);//set non-block
 		ServerSocket serverSocket=serverSocketChannel.socket();
-		serverSocket.bind(new InetSocketAddress(port));//bind port
+		serverSocket.bind(new InetSocketAddress("127.0.0.1",8889));//bind port
 		
-		selector = Selector.open();//open selector
+		this.selector = Selector.open();//open selector
 		
-		serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+		serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
 		
-		System.out.println("server start-->"+port);
+		System.out.println("server start-->"+8889);
 	}
 	
 	public void listen() throws IOException {
 		while(true) {
-			selector.select();//traverse selector
-			Set<SelectionKey> selectionKeys=selector.selectedKeys();
-			System.out.println(Arrays.toString(selectionKeys.toArray()));
+			int keys=this.selector.select();//traverse selector
+			if(keys<=0) {
+				System.out.println("no channel registered to selector");
+				break;
+			}
+			Set<SelectionKey> selectionKeys=this.selector.selectedKeys();
 			Iterator<SelectionKey> iterator=selectionKeys.iterator();
 			while (iterator.hasNext()) {
 				SelectionKey selectionKey = iterator.next();
@@ -50,40 +52,44 @@ public class NioServer {
 	}
 	
 	public void handlekey(SelectionKey selectionKey) throws IOException {
-		ServerSocketChannel server=null;
-		SocketChannel client= null;
 		String receiveText;
 		String sendText;
-		int count=0;
 		
 		if(selectionKey.isAcceptable()) {
-			server=(ServerSocketChannel) selectionKey.channel();
-			client=server.accept();
-			client.configureBlocking(false);
-			client.register(selector, SelectionKey.OP_READ);
-		}else if(selectionKey.isReadable()) {
-			client=(SocketChannel) selectionKey.channel();
-			count=client.read(receiveBuffer);
+			ServerSocketChannel serverChannel=(ServerSocketChannel) selectionKey.channel();
+			SocketChannel channel=serverChannel.accept();
+			channel.configureBlocking(false);
+			channel.register(this.selector, SelectionKey.OP_READ);
+		}
+		
+		//read operation
+		else if(selectionKey.isReadable()) {
+			SocketChannel channel=(SocketChannel) selectionKey.channel();
+			receiveBuffer.clear();
+			int count=channel.read(receiveBuffer);
+			receiveBuffer.rewind();
 			if(count>0) {
 				receiveText=new String(receiveBuffer.array(), 0, count);
 				System.out.println("server receive client date :"+receiveText);
 			}
-			client.register(selector, SelectionKey.OP_WRITE);
-		}else if(selectionKey.isWritable()) {
+			channel.register(this.selector, SelectionKey.OP_WRITE);
+		}
+		
+		//write operation 
+		else if(selectionKey.isWritable()) {
 			 sendBuffer.clear();
-			 client=(SocketChannel) selectionKey.channel();
+			 SocketChannel channel=(SocketChannel) selectionKey.channel();
 			 sendText="msg send to client"+flag++;
 			 sendBuffer.put(sendText.getBytes());
-			 sendBuffer.flip();
-			 client.write(sendBuffer);
+			 sendBuffer.rewind();
+			 channel.write(sendBuffer);
 			 System.out.println("server send data"+sendText+" to clent success");
 		}
 		
 	}
 	
 	public static void main(String[] args) throws IOException, InterruptedException {
-		int port=8888;
-		NioServer server=new NioServer(port);
+		NioServer server=new NioServer();
 		
 		Thread.sleep(10000);
 		server.listen();
